@@ -1,0 +1,160 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <SoftwareSerial.h>
+
+// Create object named bt of the class SoftwareSerial
+SoftwareSerial bt(2,3); // (Rx, Tx)
+
+// Define the I2C address of the LCD module
+const int lcdAddress = 0x27;
+
+// Define the pins for the buzzer
+const int buzzerPin = 11;
+
+// Initialize the LCD module
+LiquidCrystal_I2C lcd(lcdAddress, 16, 2);
+
+// Morse code timings (in milliseconds)
+const int dotDuration = 200;
+const int dashDuration = 3 * dotDuration;
+const int symbolSpaceDuration = dotDuration;
+const int letterSpaceDuration = 3 * dotDuration;
+const int wordSpaceDuration = 7 * dotDuration;
+
+// Morse code lookup table
+const char* morseTable[] = {
+  ".-",   // A
+  "-...", // B
+  "-.-.", // C
+  "-..",  // D
+  ".",    // E
+  "..-.", // F
+  "--.",  // G
+  "....", // H
+  "..",   // I
+  ".---", // J
+  "-.-",  // K
+  ".-..", // L
+  "--",   // M
+  "-.",   // N
+  "---",  // O
+  ".--.", // P
+  "--.-", // Q
+  ".-.",  // R
+  "...",  // S
+  "-",    // T
+  "..-",  // U
+  "...-", // V
+  ".--",  // W
+  "-..-", // X
+  "-.--", // Y
+  "--.."  // Z
+};
+
+String message = "";                  // Variable to store the Morse code message
+unsigned long lastInputTime = 0;      // Variable to store the time of last input
+
+// Function to encode a single character into Morse code
+void encodeChar(char c) {
+  // Check if the character is a letter
+  if (isAlpha(c)) {
+    // Convert the letter to uppercase
+    c = toupper(c);
+
+    // Get the Morse code representation
+    const char* morseCode = morseTable[c - 'A'];
+
+    // Output the character and Morse code on the LCD
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Char: ");
+    lcd.print(c);
+    lcd.setCursor(0, 1);
+    lcd.print("Code: ");
+    lcd.print(morseCode);
+
+    // Output the Morse code as a series of dots and dashes
+    for (int i = 0; morseCode[i] != '\0'; i++) {
+      if (morseCode[i] == '.') {
+        tone(buzzerPin, 1000, dotDuration);    // Play a tone
+        delay(dotDuration);
+        noTone(buzzerPin);
+        delay(symbolSpaceDuration);
+      } else if (morseCode[i] == '-') {
+        tone(buzzerPin, 1000, dashDuration);   // Play a tone
+        delay(dashDuration);
+        noTone(buzzerPin);
+        delay(symbolSpaceDuration);
+      }
+    }
+
+    // Add the Morse code to the message
+    message += c;
+
+    // Add a space between letters
+    message += " ";
+    delay(letterSpaceDuration);
+  } else if (c == ' ') {
+    // If the character is a space, add a word space
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Char: ");
+    lcd.print(" ");
+    lcd.setCursor(0, 1);
+    lcd.print("Code: ");
+    lcd.print("Space");
+    delay(wordSpaceDuration);
+
+    // Add a space to the message
+    message += " ";
+  }
+
+  // Update the last input time
+  lastInputTime = millis();
+}
+
+void setup() {
+  // Initialize the LCD module
+  lcd.begin();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Morse Encoder");
+
+  // Set the buzzer pin as an output
+  pinMode(buzzerPin, OUTPUT);
+
+  // Start the Bluetooth communication
+  bt.begin(9600);
+}
+
+void loop() {
+  // Check if there is any incoming data from the Bluetooth module
+  while (bt.available()) {
+    // Read the incoming character
+    char incomingChar = bt.read();
+
+    // Encode the character into Morse code and display it on the LCD
+    encodeChar(incomingChar);
+  }
+
+  // Check if the message is complete
+  if (message.length() > 0 && millis() - lastInputTime > 2000) {
+    // Display the complete text message on the LCD
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Message:");
+    lcd.setCursor(0, 1);
+    lcd.print(message);
+
+    // Reset the message variable
+    message = "";
+
+    // Wait for some time before clearing the LCD screen
+    delay(5000);
+
+    // Clear the LCD screen
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Morse Encoder");
+  }
+}
